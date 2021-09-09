@@ -1,0 +1,7 @@
+.venv
+__pycache__
+.vscode
+main.spec
+build
+dist
+card.py
