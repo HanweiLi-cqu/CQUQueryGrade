@@ -151,9 +151,11 @@ def get_course_credit(session: Session, course_id: str, course_page_params: Dict
     # return info_dic
 
 def get_oauth_token(session:Session):
+    MYCQU_TOKEN_INDEX_URL = "https://my.cqu.edu.cn/enroll/token-index"
+    url = f"https://my.cqu.edu.cn/authserver/oauth/authorize?client_id=enroll-prod&response_type=code&scope=all&state=&redirect_uri={MYCQU_TOKEN_INDEX_URL}"
     # 发送这个请求是为了获取后续的code
     response = session.get(
-        url="http://my.cqu.edu.cn/authserver/oauth/authorize?client_id=enroll-prod&response_type=code&scope=all&state=&redirect_uri=http://my.cqu.edu.cn/enroll/token-index", allow_redirects=False)
+        url=url, allow_redirects=False)
     # 后续的code会隐藏在Location里面
     codeValue = response.headers['Location']
     # 采用正则表达式搜索=开始&结尾的字符串，并通过切片获得code内容
@@ -164,63 +166,50 @@ def get_oauth_token(session:Session):
         'client_id': 'enroll-prod',
         'client_secret': 'app-a-1234',
         'code': str(codeValue),
-        'redirect_uri': 'http://my.cqu.edu.cn/enroll/token-index',
+        'redirect_uri': MYCQU_TOKEN_INDEX_URL,
         'grant_type': 'authorization_code'
     }
     # 发送post请求获取到token
     access_token = session.post(
-        url="http://my.cqu.edu.cn/authserver/oauth/token", data=token_data)
+        url='https://my.cqu.edu.cn/authserver/oauth/token', data=token_data)
     token_response = json.loads(access_token.content)
     TOKEN = token_response['access_token']
-    # 下面是获取个人信息，可以不用这一步，不过这个链接可以用来统一认证
-    final = session.get(
-        url='http://my.cqu.edu.cn/authserver/simple-user', headers=headers)
-    json_text = json.loads(final.text)
-    json_item = json_text.items()
-    res_dic = {}
-    for key, value in json_item:
-        if(key == 'krimPermTDTOS'):
-            break
-        res_dic[key] = value
-    # 构造查询寻成绩是个人认证的Authorization
+
     headers['Authorization'] = "Bearer "+TOKEN
 
 def get_grade(session: Session) -> Dict:
     get_oauth_token(session)
-    session.get(
-        url="http://my.cqu.edu.cn/resource-api/session/info-detail", headers=headers)
+    # session.get(
+    #     url="http://my.cqu.edu.cn/resource-api/session/info-detail", headers=headers)
     score = session.get(
         url="http://my.cqu.edu.cn/api/sam/score/student/score", headers=headers)
     return json.loads(score.text)
 
+def access_service(session:Session,service: str):
+    resp = session.get("https://sso.cqu.edu.cn/login",params={"service":service},allow_redirects=False)
+    return session.get(url=resp.headers['Location'],allow_redirects=False)
 
-def query_grade(username: str, password: str, output: bool = True, online: bool = False) -> str:
-    grade_service = "http://my.cqu.edu.cn/authserver/authentication/cas"
-    grade_session = login(username, password, grade_service)
-    if online == True:
-        course_service = "http://my.cqu.edu.cn/cm/portal/course"
-        course_session = login(username, password, course_service)
-        course_page_params = get_course_page_params(course_session)
-    else:
-        enegine = getEngine()
-    grades = get_grade(grade_session)
+def query_grade(username: str, password: str, output: bool = True) -> str:
+    grade_service = "https://my.cqu.edu.cn/authserver/authentication/cas"
+    session = login(username, password)
+    ## login service
+    access_service(session,grade_service)
+
+    grades = get_grade(session)
     course_dic = []  # 课程成绩，学分
     total_credits = 0  # 总学分
     table = pt.PrettyTable(['课程名称', '课程性质', '成绩', '修读性质', '课程代码', '学分'])
+
     for key, items in grades['data'].items():
         if output:
             print("学期--{}".format(key))
-        for item in items:
-            if online == True:
-                Course_Info = get_course_credit(
-                    course_session, item["courseCode"], course_page_params)  # 查询课程学分
-            else:
-                Course_Info = get_item_by_id(enegine, item["courseCode"])
+        for item in items['stuScoreHomePgVoS']:
+
             table.add_row([item['courseName'], item['courseNature'], item['effectiveScoreShow'],
-                           item['studyNature'], item['courseCode'], Course_Info['学分']])
+                           item['studyNature'], item['courseCode'], item['courseCredit']])
             course_dic.append(
-                {"成绩": item['effectiveScoreShow'], "学分": Course_Info['学分']})
-            total_credits = total_credits+eval(str(Course_Info['学分']))
+                {"成绩": item['effectiveScoreShow'], "学分": item['courseCredit']})
+            total_credits = total_credits+eval(str(item['courseCredit']))
         # 打印成绩
         if output:
             print(table)
@@ -258,6 +247,4 @@ def query_grade(username: str, password: str, output: bool = True, online: bool 
         [total_credits, avarage_score, five_credits, four_credits])
     if output:
         print(credits_table)
-    if online==False:
-        enegine.dispose()
     return table.get_string() + "\n" + credits_table.get_string()

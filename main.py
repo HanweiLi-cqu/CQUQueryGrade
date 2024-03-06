@@ -1,7 +1,7 @@
 from QueryGrade.query_grade import query_grade
 from QueryGrade.query_course_list import query_session,query_major_course
-# from gui import app
-import os
+
+
 if __name__ == "__main__":
     username = input("学号(统一认证号): ")
     password = input("密码:")

@@ -17,3 +17,8 @@ python main.py
 - 将Oauth认证模块单独提取成函数，放在了`QueryGrade\\query_grade.py`里面
 - 加入了查询已经选择课程的函数`QueryGrade\\query_course_list.py`，调用方式见main.py。
 - 加入了查询本学期的专业课程选课情况`QueryGrade\\query_course_list.py`，调用方式见main.py。
+
+## 24.3.6 更新
+- 针对新教务网认证方式重写软件逻辑(2024/3/6正常运行)
+- 学分获取不再需要多次请求，因此移除了db文件和联网查询模块
+

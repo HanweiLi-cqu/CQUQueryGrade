@@ -15,10 +15,18 @@ def get_selected_list(session: Session)->Dict:
     req=session.get(url="http://my.cqu.edu.cn/api/enrollment/enrollment/registered",headers=headers)
     return json.loads(req.text)
 
+def access_service(session:Session,service: str):
+    resp = session.get("https://sso.cqu.edu.cn/login",params={"service":service},allow_redirects=False)
+    return session.get(url=resp.headers['Location'],allow_redirects=False)
+
+
 def query_session(username: str, password: str) -> str:
-    session_service="http://my.cqu.edu.cn/authserver/authentication/cas"
-    course_session = login(username, password, session_service)
-    selected_courses=get_selected_list(course_session)
+    session_service="https://my.cqu.edu.cn/authserver/authentication/cas"
+    session = login(username, password)
+    access_service(session,session_service)
+
+
+    selected_courses=get_selected_list(session)
     courses_table = pt.PrettyTable(["课程", "学分","学院","必修/选修", "老师"])
     for items in selected_courses["alreadySelectCourseListVOs"]:
         item=items["selectCourseVOList"][0]
@@ -27,11 +35,14 @@ def query_session(username: str, password: str) -> str:
     
 
 def query_major_course(username: str, password: str):
-    session_service="http://my.cqu.edu.cn/authserver/authentication/cas"
-    course_session = login(username, password, session_service)
-    get_oauth_token(course_session)
+    session_service="https://my.cqu.edu.cn/authserver/authentication/cas"
+    session = login(username, password)
+    access_service(session,session_service)
+
+
+    get_oauth_token(session)
     courses_table = pt.PrettyTable(["课程", "学分","学院","必修/选修","是否选满"])
-    all_course_list=course_session.get(url="http://my.cqu.edu.cn/api/enrollment/enrollment/course-list",
+    all_course_list=session.get(url="http://my.cqu.edu.cn/api/enrollment/enrollment/course-list",
                          params={
                             "selectionSource": "主修"
                         },
